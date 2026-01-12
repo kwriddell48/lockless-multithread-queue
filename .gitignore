@@ -1,0 +1,41 @@
+# Build artifacts
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dll
+*.dylib
+
+# Executables
+queue_demo
+queue_demo.exe
+queue_demo.out
+
+# Object files
+main.o
+queue.o
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Compiled binaries
+bin/
+build/
