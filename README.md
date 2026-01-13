@@ -99,10 +99,32 @@ queue_destroy(queue);
 ## Notes
 
 - This implementation is designed to be lock-free and can be used in concurrent scenarios
-- **ABA Protection**: The ABA counter mechanism ensures that even if a pointer value is reused (same memory address), the version counter will be different, allowing CAS operations to correctly detect concurrent modifications
+- **Platform Compatibility**: On platforms without 16-byte atomic support (like Cygwin), the implementation uses plain atomic pointers without ABA protection for compatibility
 - Memory reclamation uses standard `free()` - for production concurrent use, consider hazard pointers or epoch-based reclamation
 - Requires C11 compiler support for `stdatomic.h`
-- Atomic operations on `PointerWithABA` structures require that the structure size is compatible with lock-free atomic operations (typically 16 bytes or less on 64-bit systems)
 - The queue copies data on enqueue, so the caller can free their original data after enqueuing
 - The caller must free data returned by `dequeue()` to prevent memory leaks
 - Supports any data type (integers, strings, structs, etc.) by passing pointer and size
+- **Statistics**: The queue tracks enqueue/dequeue counters and retry counts for performance analysis## Building on Different Platforms### Linux/Unix
+```bash
+make
+```
+
+### Windows (Cygwin/MinGW)
+```bash
+make
+```
+Note: Requires linking with `-latomic` for 16-byte atomic operations on some platforms.
+
+### Windows (MSVC)
+```batch
+cl /W4 /std:c11 /O2 main.c queue.c /Fe:queue_demo.exe
+```
+
+## Testing
+
+The included test program demonstrates:
+- Basic queue operations (enqueue/dequeue)
+- String and integer data types
+- Multi-threaded concurrent access (10 threads, 100 items each)
+- Performance statistics including retry counts

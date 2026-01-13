@@ -26,6 +26,7 @@ typedef struct Node {
     size_t length;        // Length of the data object in bytes
     _Atomic(struct Node*) prev;  // Previous node pointer (ABA counter removed for Cygwin compatibility)
     _Atomic(struct Node*) next;  // Next node pointer (ABA counter removed for Cygwin compatibility)
+    atomic_bool locked;   // Lock field: 0 = unlocked, 1 = locked (prevents concurrent access/delete)
 } Node;
 
 // Queue structure
@@ -33,6 +34,7 @@ typedef struct Queue {
     Node* head;  // Sentinel head node (stable, doesn't change)
     Node* tail;  // Sentinel tail node (stable, doesn't change)
     atomic_size_t size;
+    atomic_size_t max_queue_size;  // Maximum number of nodes that were in the queue
     atomic_uint enqueue_counter;  // Counter for successful enqueue operations (unsigned int)
     atomic_uint dequeue_counter;  // Counter for successful dequeue operations (unsigned int)
     atomic_uint enqueue_retries;  // Counter for enqueue retry attempts (CAS failures)
@@ -46,6 +48,7 @@ bool queue_enqueue(Queue* queue, const void* data, size_t length);
 bool queue_dequeue(Queue* queue, void** data, size_t* length);
 bool queue_is_empty(Queue* queue);
 size_t queue_size(Queue* queue);
+size_t queue_max_size(Queue* queue);  // Get maximum queue size
 void queue_print(Queue* queue, void (*print_func)(const void* data, size_t length));
 void queue_print_stats(Queue* queue);
 
