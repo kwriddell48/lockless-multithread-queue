@@ -38,13 +38,40 @@ static int tfprintf(FILE* stream, const char* format, ...) {
     va_end(args);
     return result;
 }
+// Barrier structure
+typedef struct {
+    pthread_mutex_t lock;
+    pthread_cond_t  cond;
+    int count;
+    int generation;
+    int total;
+} barrier_t;
 
 // Thread argument structure
 typedef struct {
     Queue* queue;
     int thread_id;
     int num_elements;
+    barrier_t *barrier;
 } WorkerThreadArg;
+
+
+void barrier_wait(barrier_t *b)
+{
+    pthread_mutex_lock(&b->lock);
+    int gen = b->generation;
+
+    if (++b->count == b->total) {
+        b->generation++;
+        b->count = 0;
+        pthread_cond_broadcast(&b->cond);
+    } else {
+        while (gen == b->generation)
+            pthread_cond_wait(&b->cond, &b->lock);
+    }
+
+    pthread_mutex_unlock(&b->lock);
+}
 
 // Worker thread function that enqueues and dequeues messages
 void* worker_thread(void* arg) {
@@ -52,7 +79,14 @@ void* worker_thread(void* arg) {
     Queue* q = targ->queue;
     int thread_id = targ->thread_id;
     int num_elements = targ->num_elements;
-    
+    barrier_t* barrier = targ->barrier;
+
+    tprintf("Worker thread %d: Before Barrier)\n", thread_id);
+    fflush(stdout);
+    barrier_wait(barrier);
+    tprintf("Worker thread %d: after Barrier)\n", thread_id);
+    fflush(stdout);
+
     // Seed random number generator with thread ID and time
     unsigned int seed = (unsigned int)(time(NULL) ^ thread_id ^ (unsigned long)pthread_self());
     
@@ -86,7 +120,7 @@ void* worker_thread(void* arg) {
     fflush(stdout);
     
     // Dequeue elements (try to dequeue as many as we can)
-    for (int i = 0; i < num_elements; i++) {
+    for (int i = 0; i < num_elements*2; i++) {
         void* dequeued_data;
         size_t dequeued_length;
         
@@ -112,7 +146,8 @@ void* worker_thread(void* arg) {
             thread_id, enqueued, dequeued);
     fflush(stdout);
     
-    return NULL;
+    pthread_exit(NULL);
+    
 }
 
 int main(int argc, char* argv[]) {
@@ -142,6 +177,7 @@ int main(int argc, char* argv[]) {
         num_threads = atoi(argv[1]);
         if (num_threads <= 0) {
             tfprintf(stderr, "Invalid number of threads: %s (must be > 0)\n", argv[1]);
+            fflush(stderr);
             return 1;
         }
     }
@@ -151,12 +187,14 @@ int main(int argc, char* argv[]) {
         num_elements = atoi(argv[2]);
         if (num_elements <= 0) {
             tfprintf(stderr, "Invalid number of elements: %s (must be > 0)\n", argv[2]);
+            fflush(stderr);
             return 1;
         }
     }
     
     if (argc > 3) {
         tfprintf(stderr, "Too many arguments. Use '%s ?' for help.\n", argv[0]);
+        fflush(stderr);
         return 1;
     }
     
@@ -164,6 +202,7 @@ int main(int argc, char* argv[]) {
     Queue* queue = queue_init();
     if (queue == NULL) {
         tfprintf(stderr, "Failed to initialize queue\n");
+        fflush(stderr);
         return 1;
     }
     
@@ -178,15 +217,31 @@ int main(int argc, char* argv[]) {
     
     if (threads == NULL || thread_args == NULL) {
         tfprintf(stderr, "Failed to allocate memory for threads\n");
+        fflush(stderr);
         queue_destroy(queue);
         return 1;
     }
+    
+    // Initialize barrier
+    barrier_t* barrier = (barrier_t*)malloc(sizeof(barrier_t));
+    if (barrier == NULL) {
+        tfprintf(stderr, "Failed to allocate memory for barrier\n");
+        fflush(stderr);
+        queue_destroy(queue);
+        return 1;
+    }
+    barrier->total = num_threads;
+    barrier->count = 0;
+    barrier->generation = 0;
+    pthread_mutex_init(&barrier->lock, NULL);
+    pthread_cond_init(&barrier->cond, NULL);
     
     // Initialize thread arguments
     for (int i = 0; i < num_threads; i++) {
         thread_args[i].queue = queue;
         thread_args[i].thread_id = i;
         thread_args[i].num_elements = num_elements;
+        thread_args[i].barrier = barrier;
     }
     
     // Create and start all worker threads
@@ -196,6 +251,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < num_threads; i++) {
         if (pthread_create(&threads[i], NULL, worker_thread, &thread_args[i]) != 0) {
             tfprintf(stderr, "Failed to create thread %d\n", i);
+            fflush(stderr);
             // Clean up already created threads (simplified - in production, track which ones succeeded)
             queue_destroy(queue);
             free(threads);
@@ -214,6 +270,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < num_threads; i++) {
         if (pthread_join(threads[i], NULL) != 0) {
             tfprintf(stderr, "Failed to join thread %d\n", i);
+            fflush(stderr);
         }
     }
     
@@ -222,14 +279,18 @@ int main(int argc, char* argv[]) {
     
     // Print queue statistics (includes maximum queue size)
     queue_print_stats(queue);
-    
+    fflush(stdout);
     // Clean up
     tprintf("\nCleaning up...\n");
+    fflush(stdout);
+
     queue_destroy(queue);
     free(threads);
     free(thread_args);
+    free(barrier);
     
     tprintf("Thread test completed successfully.\n");
+    fflush(stdout);
     
     return 0;
 }
