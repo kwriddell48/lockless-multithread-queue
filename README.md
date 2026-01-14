@@ -128,3 +128,12 @@ The included test program demonstrates:
 - String and integer data types
 - Multi-threaded concurrent access (10 threads, 100 items each)
 - Performance statistics including retry counts
+
+To run the multi-threaded stress test:
+
+```bash
+gcc -std=c11 -O2 thread_test.c queue.c -o thread_test
+./thread_test
+Default setting   ./thread_test 5 50 
+./thread_test <number of threads> <number of elements>
+```

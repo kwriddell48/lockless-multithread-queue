@@ -81,11 +81,14 @@ void* worker_thread(void* arg) {
     int num_elements = targ->num_elements;
     barrier_t* barrier = targ->barrier;
 
-    tprintf("Worker thread %d: Before Barrier)\n", thread_id);
+    tprintf("Worker thread %d: Waiting for all threads to start)\n", thread_id);
     fflush(stdout);
+//   tprintf("Worker thread %d: Before Barrier)\n", thread_id);
+//    fflush(stdout);
+
     barrier_wait(barrier);
-    tprintf("Worker thread %d: after Barrier)\n", thread_id);
-    fflush(stdout);
+//    tprintf("Worker thread %d: after Barrier)\n", thread_id);
+//    fflush(stdout);
 
     // Seed random number generator with thread ID and time
     unsigned int seed = (unsigned int)(time(NULL) ^ thread_id ^ (unsigned long)pthread_self());
